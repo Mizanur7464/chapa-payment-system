@@ -23,7 +23,7 @@ print("Bot run successfully")
 # Conversation states
 WITHDRAW_PHONE, WITHDRAW_AMOUNT, WITHDRAW_BANK, WITHDRAW_ACCOUNT, WITHDRAW_NAME = range(5)
 
-ADMIN_USER_IDS = [7820675619]
+ADMIN_USER_IDS = [368455563, 7820675619]
 
 def _on_startup(app):
     import asyncio
