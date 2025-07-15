@@ -23,7 +23,7 @@ print("Bot run successfully")
 # Conversation states
 WITHDRAW_PHONE, WITHDRAW_AMOUNT, WITHDRAW_BANK, WITHDRAW_ACCOUNT, WITHDRAW_NAME = range(5)
 
-ADMIN_USER_IDS = [368455563, 7820675619]
+ADMIN_USER_IDS = [368455563]
 
 def _on_startup(app):
     import asyncio
@@ -512,6 +512,24 @@ class TelegramBot:
 
     async def withdraw_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Support both CallbackQuery and Message
+        user_id = None
+        if hasattr(update, 'callback_query') and update.callback_query:
+            query = update.callback_query
+            user_id = query.from_user.id if query and query.from_user else None
+        elif update.effective_user:
+            user_id = update.effective_user.id
+        if user_id is not None:
+            valid_referrals = await count_valid_referrals(user_id)
+            user_lang = await get_user_lang(user_id)
+            if valid_referrals < 15:
+                msg = "❌ You need at least 15 valid referrals to withdraw."
+                if hasattr(update, 'callback_query') and update.callback_query:
+                    await update.callback_query.answer()
+                    await update.callback_query.edit_message_text(msg)
+                elif update.message:
+                    await update.message.reply_text(msg)
+                from telegram.ext import ConversationHandler
+                return ConversationHandler.END
         if hasattr(update, 'callback_query') and update.callback_query:
             query = update.callback_query
             await query.answer()
