@@ -7,5 +7,5 @@ CHANNEL_LINK = "https://t.me/nanabets1"
 GROUP_USERNAME = "-1002582748190"    # গ্রুপের আইডি (উদাহরণ)
 GROUP_LINK = "https://t.me/Nanabetchat"
 
-BOT_NAME = "@demoforwork_bot"
+BOT_NAME = "@EthioAddjobsbot"
 BOT_DESCRIPTION = "A bot that requires users to join a channel and a group before proceeding"

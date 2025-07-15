@@ -57,6 +57,7 @@ class TelegramBot:
         self.application.add_handler(CommandHandler("admin_approved_withdrawals", self.admin_approved_withdrawals_command))
         self.application.add_handler(CommandHandler("admin", self.admin_panel_command))
         self.application.add_handler(CommandHandler("admin_export_users", self.admin_export_users_command))
+        self.application.add_handler(CommandHandler("help", self.help_command))
         # Handler order: admin_withdrawal_action first, then withdraw_conv, then button_callback
         self.application.add_handler(CallbackQueryHandler(self.admin_withdrawal_action, pattern=r"^admin_withdraw_(approve|reject)_\d+$"))
         withdraw_conv = ConversationHandler(
@@ -242,10 +243,17 @@ class TelegramBot:
         user_lang = await get_user_lang(user_id)
         valid_referrals = await count_valid_referrals(user_id)
         user = await get_user(user_id)
-        balance = user[1] if user else 0
-        unlocked = "Yes" if user and user[3] else "No"
+        # Only unlock balance if 15 valid referrals and bonus is unlocked
+        if valid_referrals >= 15 and user and user[3]:
+            balance = user[1]
+            unlocked = "Yes"
+            balance_display = f"{balance} ETB"
+        else:
+            balance = 0
+            unlocked = "No"
+            balance_display = "Locked"
         message = (
-            f"{LANG[user_lang]['joined_channel']}\n\n{LANG[user_lang]['signup_bonus']}\n\n{LANG[user_lang]['valid_referrals'].format(count=valid_referrals)}\n{LANG[user_lang]['balance'].format(amount=balance)}\n{LANG[user_lang]['bonus_unlocked'].format(unlocked=unlocked)}"
+            f"{LANG[user_lang]['joined_channel']}\n\n{LANG[user_lang]['signup_bonus']}\n\n{LANG[user_lang]['valid_referrals'].format(count=valid_referrals)}\n{LANG[user_lang]['balance'].format(amount=balance_display)}\n{LANG[user_lang]['bonus_unlocked'].format(unlocked=unlocked)}"
         )
         keyboard = [
             [
@@ -298,18 +306,24 @@ class TelegramBot:
         user_lang = await get_user_lang(user_id)
         user = await get_user(user_id)
         valid_referrals = await count_valid_referrals(user_id)
-        total_earned = 0
-        if user:
-            total_earned = (30 if user[3] else 0) + max(0, valid_referrals - 15)
-        locked_bonus = "Yes" if user and user[3] else "No"
-        available_balance = user[1] if user else 0
+        # Only unlock earnings if 15 valid referrals and bonus is unlocked
+        if valid_referrals >= 15 and user and user[3]:
+            total_earned = 30 + max(0, valid_referrals - 15)
+            locked_bonus = "No"
+            available_balance = user[1]
+            can_withdraw = available_balance >= 5
+        else:
+            total_earned = 0
+            locked_bonus = "Yes"
+            available_balance = "Locked"
+            can_withdraw = False
         message = (
             f"{LANG[user_lang]['total_earned']}: {total_earned} ETB\n"
             f"{LANG[user_lang]['locked_bonus']}: {locked_bonus}\n"
-            f"{LANG[user_lang]['available_balance']}: {available_balance} ETB"
+            f"{LANG[user_lang]['available_balance']}: {available_balance if valid_referrals >= 15 and user and user[3] else 'Locked'} ETB"
         )
         keyboard = []
-        if available_balance >= 5:
+        if can_withdraw:
             keyboard.append([InlineKeyboardButton(LANG[user_lang]['withdraw'], callback_data="withdraw")])
         keyboard.append([InlineKeyboardButton(LANG[user_lang]['back_home'], callback_data="back_home")])
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -352,13 +366,15 @@ class TelegramBot:
         referral_link = f"https://t.me/{BOT_NAME.lstrip('@')}?start={user_id}"
         await query.answer("Link copied! (Copy manually)", show_alert=True)
         await query.edit_message_text(f"{LANG[user_lang]['referral_link']}:\n{referral_link}\n\n(You can copy it manually.)",
-                                      reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back to Home", callback_data="back_home")]]))
+                                      reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back to Home", callback_data="back_home")]]),
+                                      disable_web_page_preview=True)
 
     async def invite_now(self, query, user_id):
         user_lang = await get_user_lang(user_id)
         referral_link = f"https://t.me/{BOT_NAME.lstrip('@')}?start={user_id}"
         await query.edit_message_text(f"{LANG[user_lang]['invite_now']}\n{referral_link}",
-                                      reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back to Home", callback_data="back_home")]]))
+                                      reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back to Home", callback_data="back_home")]]),
+                                      disable_web_page_preview=True)
 
     async def show_leaderboard(self, target):
         from db import get_top_referrers
@@ -480,16 +496,16 @@ class TelegramBot:
         )
         if hasattr(target, 'edit_message_text'):
             try:
-                await target.edit_message_text(message, reply_markup=None, parse_mode="HTML")
+                await target.edit_message_text(message, reply_markup=None, parse_mode="HTML", disable_web_page_preview=True)
             except telegram.error.BadRequest as e:
                 if "Message is not modified" in str(e):
                     pass
                 else:
                     raise
         elif hasattr(target, 'message') and target.message:
-            await target.message.reply_text(message, reply_markup=None, parse_mode="HTML")
+            await target.message.reply_text(message, reply_markup=None, parse_mode="HTML", disable_web_page_preview=True)
         else:
-            await target.reply_text(message, reply_markup=None, parse_mode="HTML")
+            await target.reply_text(message, reply_markup=None, parse_mode="HTML", disable_web_page_preview=True)
 
     async def show_language_panel(self, target):
         user_lang = await get_user_lang(target.effective_user.id if hasattr(target, 'effective_user') else target.from_user.id)
@@ -519,10 +535,18 @@ class TelegramBot:
         elif update.effective_user:
             user_id = update.effective_user.id
         if user_id is not None:
+            user = await get_user(user_id)
             valid_referrals = await count_valid_referrals(user_id)
             user_lang = await get_user_lang(user_id)
-            if valid_referrals < 15:
-                msg = "❌ You need at least 15 valid referrals to withdraw."
+            # Prevent withdraw if not eligible
+            if not (user and user[3] and valid_referrals >= 15 and user[1] >= 5):
+                msg = "❌ You need at least 15 valid referrals and minimum 5 ETB balance to withdraw."
+                # Clear any withdraw-related context
+                if context.user_data is not None:
+                    context.user_data.pop('withdraw_amount', None)
+                    context.user_data.pop('withdraw_bank', None)
+                    context.user_data.pop('withdraw_account', None)
+                    context.user_data.pop('withdraw_name', None)
                 if hasattr(update, 'callback_query') and update.callback_query:
                     await update.callback_query.answer()
                     await update.callback_query.edit_message_text(msg)
@@ -676,8 +700,8 @@ class TelegramBot:
             BotCommand("history", "View your withdrawal history"),
             BotCommand("settings", "Bot settings"),
             BotCommand("language", "Change language"),
+            BotCommand("help", "Show all commands"),
         ]
-        # context None হলে self.application.bot ব্যবহার করুন
         bot = context.bot if context and hasattr(context, 'bot') else self.application.bot
         await bot.set_my_commands(commands)
 
@@ -887,6 +911,22 @@ class TelegramBot:
         if update.message:
             with open(file_path, "rb") as f:
                 await update.message.reply_document(f, filename="users_export.xlsx")
+
+    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        commands = [
+            ("/start", "Start the bot / Home menu"),
+            ("/myearnings", "View your earnings"),
+            ("/myreferrals", "View your referrals"),
+            ("/withdraw", "Withdraw your balance"),
+            ("/referrallink", "Get your referral link"),
+            ("/leaderboard", "View the leaderboard"),
+            ("/history", "View your withdrawal history"),
+            ("/settings", "Bot settings"),
+            ("/language", "Change language"),
+        ]
+        msg = "<b>Available Commands:</b>\n\n" + "\n".join([f"<b>{cmd}</b> - {desc}" for cmd, desc in commands])
+        if update.message:
+            await update.message.reply_text(msg, parse_mode="HTML")
 
     def run(self):
         # Only run polling; do not call asyncio.run(self.startup()) to avoid event loop errors
