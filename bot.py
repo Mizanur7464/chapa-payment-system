@@ -107,7 +107,7 @@ class TelegramBot:
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         if update.message:
-         await update.message.reply_text(message_text, reply_markup=reply_markup)
+        await update.message.reply_text(message_text, reply_markup=reply_markup)
     
     async def show_join_group_message(self, update: Update, query=None):
         if not update.effective_user:
@@ -237,7 +237,7 @@ class TelegramBot:
             f"Please join our {type_label} first."
         )
         if query:
-            await query.edit_message_text(text=message_text, reply_markup=reply_markup)
+        await query.edit_message_text(text=message_text, reply_markup=reply_markup)
     
     async def show_referral_info(self, update: Update, user_id: int, query=None):
         user_lang = await get_user_lang(user_id)
@@ -284,8 +284,8 @@ class TelegramBot:
                     raise
         else:
             if update.message:
-                await update.message.reply_text(message, reply_markup=reply_markup)
-
+            await update.message.reply_text(message, reply_markup=reply_markup)
+    
     async def balance_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id if update.effective_user else None
         if user_id is None:
@@ -296,11 +296,11 @@ class TelegramBot:
         balance = user[1] if user else 0
         unlocked = "Yes" if user and user[3] else "No"
         if update.message:
-            await update.message.reply_text(
-                f"{LANG[user_lang]['balance']}: {balance} ETB\n"
-                f"{LANG[user_lang]['valid_referrals']}: {valid_referrals}\n"
-                f"{LANG[user_lang]['bonus_unlocked']}: {unlocked}"
-            )
+        await update.message.reply_text(
+            f"{LANG[user_lang]['balance']}: {balance} ETB\n"
+            f"{LANG[user_lang]['valid_referrals']}: {valid_referrals}\n"
+            f"{LANG[user_lang]['bonus_unlocked']}: {unlocked}"
+        )
     
     async def show_earnings(self, target, user_id):
         user_lang = await get_user_lang(user_id)
@@ -313,7 +313,7 @@ class TelegramBot:
             available_balance = user[1]
             can_withdraw = available_balance >= 5
         else:
-            total_earned = 0
+        total_earned = 0
             locked_bonus = "Yes"
             available_balance = "Locked"
             can_withdraw = False
@@ -488,24 +488,32 @@ class TelegramBot:
     async def show_referral_link(self, target, user_id):
         user_lang = await get_user_lang(user_id)
         referral_link = f"https://t.me/{BOT_NAME.lstrip('@')}?start={user_id}"
-        message = (
-            "<b>Earn Money from Home!</b>\n\n"
-            "Join this bot and get 500 Birr daily—plus a daily chance to win 1 of 5 iPhone 15 Pro Max!\n\n"
-            "🔗 Referral Link:\n"
-            f"{referral_link}"
-        )
+        if user_lang == 'am':
+            message = (
+                "💰ከቤቶ ሆነው ገንዘብ ይስሩ! 💵 \n\n"
+                "⭕️ይህን ቦት ተቀላቅለው ለሰው በማስተላለፍ ብቻ በቀን ከ500 ብር በላይ ይስሩ ፣ በተጨማሪም በየቀኑ ከምንሸልማቸው 5 Iphone 15 Pro Max ስልኮች 1 ይሸለሙ።\n\n"
+                "🔗የሪፈራል ሊንክ፡\n"
+                f"{referral_link}"
+            )
+        else:
+            message = (
+                "💰Earn Money from Home! 💵\n\n"
+                "⭕️Join this bot and by simply sharing it with others, earn over 500 Birr daily; plus, every day you have a chance to win 1 of 5 iPhone 15 Pro Max!\n\n"
+                "🔗Referral Link:\n"
+                f"{referral_link}"
+            )
         if hasattr(target, 'edit_message_text'):
             try:
-                await target.edit_message_text(message, reply_markup=None, parse_mode="HTML", disable_web_page_preview=True)
+                await target.edit_message_text(message, reply_markup=None, parse_mode="HTML")
             except telegram.error.BadRequest as e:
                 if "Message is not modified" in str(e):
                     pass
                 else:
                     raise
         elif hasattr(target, 'message') and target.message:
-            await target.message.reply_text(message, reply_markup=None, parse_mode="HTML", disable_web_page_preview=True)
+            await target.message.reply_text(message, reply_markup=None, parse_mode="HTML")
         else:
-            await target.reply_text(message, reply_markup=None, parse_mode="HTML", disable_web_page_preview=True)
+            await target.reply_text(message, reply_markup=None, parse_mode="HTML")
 
     async def show_language_panel(self, target):
         user_lang = await get_user_lang(target.effective_user.id if hasattr(target, 'effective_user') else target.from_user.id)
@@ -565,7 +573,7 @@ class TelegramBot:
                 "Maximum Amount: 1,000 ETB</pre>"
             )
             if query:
-                await query.edit_message_text(msg, parse_mode="HTML")
+            await query.edit_message_text(msg, parse_mode="HTML")
             return WITHDRAW_AMOUNT
         else:
             user_lang = await get_user_lang(update.effective_user.id) if update.effective_user else None
@@ -576,7 +584,7 @@ class TelegramBot:
                 "Maximum Amount: 1,000 ETB</pre>"
             )
             if update.message:
-                await update.message.reply_text(msg, parse_mode="HTML")
+            await update.message.reply_text(msg, parse_mode="HTML")
             return WITHDRAW_AMOUNT
 
     async def withdraw_amount_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -593,18 +601,18 @@ class TelegramBot:
             amount = int(text)
         except Exception:
             if update.message:
-                await update.message.reply_text("❌ Please enter a valid number.")
+            await update.message.reply_text("❌ Please enter a valid number.")
             return WITHDRAW_AMOUNT
         if amount < 5:
             if update.message:
-                await update.message.reply_text("❌ Minimum withdraw amount is 5 ETB.")
+            await update.message.reply_text("❌ Minimum withdraw amount is 5 ETB.")
             return WITHDRAW_AMOUNT
         if amount > balance:
             if update.message:
-                await update.message.reply_text(f"❌ You cannot withdraw more than your balance ({balance} ETB).")
+            await update.message.reply_text(f"❌ You cannot withdraw more than your balance ({balance} ETB).")
             return WITHDRAW_AMOUNT
         if context.user_data is not None:
-            context.user_data['withdraw_amount'] = amount
+        context.user_data['withdraw_amount'] = amount
         bank_keyboard = [
             ["TeleBirr", "Commercial Bank of Ethiopia"],
             ["Cbe birr", "Abyssinia Bank"],
@@ -612,10 +620,10 @@ class TelegramBot:
         ]
         reply_markup = ReplyKeyboardMarkup(bank_keyboard, one_time_keyboard=True, resize_keyboard=True)
         if update.message:
-            await update.message.reply_text(
-                "Select a bank to withdraw your money to",
-                reply_markup=reply_markup
-            )
+        await update.message.reply_text(
+            "Select a bank to withdraw your money to",
+            reply_markup=reply_markup
+        )
         return WITHDRAW_BANK
 
     async def withdraw_bank_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -633,21 +641,21 @@ class TelegramBot:
         ]
         if bank not in valid_banks:
             if update.message:
-                await update.message.reply_text("❌ Please select a valid bank from the menu.")
+            await update.message.reply_text("❌ Please select a valid bank from the menu.")
             return WITHDRAW_BANK
         if context.user_data is not None:
-            context.user_data['withdraw_bank'] = bank
+        context.user_data['withdraw_bank'] = bank
         if update.message:
-            await update.message.reply_text(f"Please enter your account number for {bank}", reply_markup=ReplyKeyboardRemove())
+        await update.message.reply_text(f"Please enter your account number for {bank}", reply_markup=ReplyKeyboardRemove())
         return WITHDRAW_ACCOUNT
 
     async def withdraw_account_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         account_number = update.message.text.strip() if update.message and update.message.text else None
         bank = context.user_data.get('withdraw_bank', '') if context.user_data else ''
         if context.user_data is not None:
-            context.user_data['withdraw_account'] = account_number
+        context.user_data['withdraw_account'] = account_number
         if update.message:
-            await update.message.reply_text(f"Please enter the account owners full name for {bank}")
+        await update.message.reply_text(f"Please enter the account owners full name for {bank}")
         return WITHDRAW_NAME
 
     async def withdraw_name_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -656,13 +664,13 @@ class TelegramBot:
         account_number = context.user_data.get('withdraw_account', '') if context.user_data else ''
         amount = context.user_data.get('withdraw_amount', 0) if context.user_data else 0
         if context.user_data is not None:
-            context.user_data['withdraw_name'] = full_name
+        context.user_data['withdraw_name'] = full_name
         # Calculate fee and net amount
         fee = round(amount * 0.033, 2)
         net = round(amount - fee, 2)
         # Add withdrawal request to DB
         if update.effective_user and update.effective_user.id:
-            await add_withdrawal(update.effective_user.id, amount, status='Pending', bank=bank, account_number=account_number, account_name=full_name)
+        await add_withdrawal(update.effective_user.id, amount, status='Pending', bank=bank, account_number=account_number, account_name=full_name)
         msg = (
             "Please confirm your withdrawal:\n\n"
             f"<pre>Bank: {bank}\n"
@@ -679,14 +687,14 @@ class TelegramBot:
             ]
         ]
         if update.message:
-            await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
+        await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
         return ConversationHandler.END
 
     async def withdraw_cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.message:
-            await update.message.reply_text("Withdraw cancelled.")
+        await update.message.reply_text("Withdraw cancelled.")
         if context.user_data is not None:
-            context.user_data.pop('withdraw_amount', None)
+        context.user_data.pop('withdraw_amount', None)
         return ConversationHandler.END
 
     async def set_bot_commands(self, context=None):
@@ -708,11 +716,11 @@ class TelegramBot:
     # Slash command handlers for menu commands
     async def cmd_my_earnings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.effective_user and update.effective_user.id:
-            await self.show_earnings(update, update.effective_user.id)
+        await self.show_earnings(update, update.effective_user.id)
 
     async def cmd_my_referrals(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.effective_user and update.effective_user.id:
-            await self.show_my_referrals(update, update.effective_user.id)
+        await self.show_my_referrals(update, update.effective_user.id)
 
     async def cmd_withdraw(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Start withdraw process (simulate button click)
@@ -720,14 +728,14 @@ class TelegramBot:
 
     async def cmd_referral_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.effective_user and update.effective_user.id:
-            await self.show_referral_link(update, update.effective_user.id)
+        await self.show_referral_link(update, update.effective_user.id)
 
     async def cmd_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await self.show_leaderboard(update)
 
     async def cmd_history(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.effective_user and update.effective_user.id:
-            await self.show_history(update, update.effective_user.id)
+        await self.show_history(update, update.effective_user.id)
 
     async def cmd_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await self.show_settings(update)
@@ -742,12 +750,12 @@ class TelegramBot:
         user_lang = await get_user_lang(user_id)
         if user_id not in ADMIN_USER_IDS:
             if update.message:
-                await update.message.reply_text(LANG[user_lang]['admin_only'])
+            await update.message.reply_text(LANG[user_lang]['admin_only'])
             return
         pending = await get_pending_withdrawals()
         if not pending:
             if update.message:
-                await update.message.reply_text(LANG[user_lang]['admin_no_withdrawals'])
+            await update.message.reply_text(LANG[user_lang]['admin_no_withdrawals'])
             return
         for w in pending:
             wid, uid, amount, status, created_at, bank, account_number, account_name = w
@@ -767,7 +775,7 @@ class TelegramBot:
                 ]
             ]
             if update.message:
-                await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
+            await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
 
     async def admin_withdrawal_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
@@ -778,8 +786,8 @@ class TelegramBot:
             user_lang = await get_user_lang(user_id)
             if user_id not in ADMIN_USER_IDS:
                 if query:
-                    await query.answer()
-                    await query.edit_message_text(LANG[user_lang]['admin_only'])
+                await query.answer()
+                await query.edit_message_text(LANG[user_lang]['admin_only'])
                 return
             data = query.data if query and hasattr(query, 'data') else None
             if not data:
@@ -794,7 +802,7 @@ class TelegramBot:
                     row = await cursor.fetchone()
                     if not row:
                         if query:
-                            await query.edit_message_text("Withdrawal not found.")
+                        await query.edit_message_text("Withdrawal not found.")
                         return
                     target_uid, amount = row
             target_lang = await get_user_lang(target_uid)
@@ -803,12 +811,12 @@ class TelegramBot:
                 await update_withdrawal_status(wid, 'Completed')
                 await context.bot.send_message(target_uid, LANG[target_lang]['admin_withdraw_user_approved'])
                 if query:
-                    await query.edit_message_text(LANG[user_lang]['admin_withdraw_approved'])
+                await query.edit_message_text(LANG[user_lang]['admin_withdraw_approved'])
             elif action == 'reject':
                 await update_withdrawal_status(wid, 'Rejected')
                 await context.bot.send_message(target_uid, LANG[target_lang]['admin_withdraw_user_rejected'])
                 if query:
-                    await query.edit_message_text(LANG[user_lang]['admin_withdraw_rejected'])
+                await query.edit_message_text(LANG[user_lang]['admin_withdraw_rejected'])
         except Exception as e:
             print("ADMIN WITHDRAW ERROR:", e)
             if 'query' in locals() and query:
@@ -821,7 +829,7 @@ class TelegramBot:
         user_lang = await get_user_lang(user_id)
         if user_id not in ADMIN_USER_IDS:
             if update.message:
-                await update.message.reply_text(LANG[user_lang]['admin_only'])
+            await update.message.reply_text(LANG[user_lang]['admin_only'])
             return
         # Get last 5 approved withdrawals
         async with aiosqlite.connect('bot.db') as db:
@@ -829,7 +837,7 @@ class TelegramBot:
                 rows = await cursor.fetchall()
         if not rows:
             if update.message:
-                await update.message.reply_text(LANG[user_lang].get('admin_no_approved_withdrawals', 'No approved withdrawals found.'))
+            await update.message.reply_text(LANG[user_lang].get('admin_no_approved_withdrawals', 'No approved withdrawals found.'))
             return
         for row in rows:
             uid, amount, created_at, bank, account_number, account_name = row
@@ -843,7 +851,7 @@ class TelegramBot:
                 f"Account Name: {account_name or '-'}"
             )
             if update.message:
-                await update.message.reply_text(msg, parse_mode="HTML")
+            await update.message.reply_text(msg, parse_mode="HTML")
 
     async def admin_panel_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id if update.effective_user else None
@@ -852,7 +860,7 @@ class TelegramBot:
         user_lang = await get_user_lang(user_id)
         if user_id not in ADMIN_USER_IDS:
             if update.message:
-                await update.message.reply_text(LANG[user_lang]['admin_only'])
+            await update.message.reply_text(LANG[user_lang]['admin_only'])
             return
         msg = (
             f"<b>{LANG[user_lang]['admin_panel_title'] if 'admin_panel_title' in LANG[user_lang] else '🛡 Admin Panel'}</b>\n\n"
@@ -861,7 +869,7 @@ class TelegramBot:
             f"/admin_export_users - {LANG[user_lang].get('admin_panel_export', 'Export all users to Excel')}\n"
         )
         if update.message:
-            await update.message.reply_text(msg, parse_mode="HTML")
+        await update.message.reply_text(msg, parse_mode="HTML")
 
     async def admin_export_users_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id if update.effective_user else None
@@ -870,7 +878,7 @@ class TelegramBot:
         user_lang = await get_user_lang(user_id)
         if user_id not in ADMIN_USER_IDS:
             if update.message:
-                await update.message.reply_text(LANG[user_lang]['admin_only'])
+            await update.message.reply_text(LANG[user_lang]['admin_only'])
             return
         # Fetch all users
         async with aiosqlite.connect('bot.db') as db:
@@ -880,8 +888,8 @@ class TelegramBot:
         wb = openpyxl.Workbook()
         ws = wb.active
         if ws:
-            ws.title = "Users"
-            ws.append(["User Name", "User ID", "Total Referral", "Total Balance", "Withdraw History"])
+        ws.title = "Users"
+        ws.append(["User Name", "User ID", "Total Referral", "Total Balance", "Withdraw History"])
         for u in users:
             uid, balance, referrals, lang = u
             # Try to get username
@@ -903,14 +911,14 @@ class TelegramBot:
             else:
                 whist_str = "-"
             if ws:
-                ws.append([username, uid, referrals, balance, whist_str])
+            ws.append([username, uid, referrals, balance, whist_str])
         # Save to file
         file_path = "users_export.xlsx"
         wb.save(file_path)
         # Send file
         if update.message:
-            with open(file_path, "rb") as f:
-                await update.message.reply_document(f, filename="users_export.xlsx")
+        with open(file_path, "rb") as f:
+            await update.message.reply_document(f, filename="users_export.xlsx")
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         commands = [

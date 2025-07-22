@@ -75,7 +75,8 @@ LANG = {
         'admin_panel_title': '🛡 Admin Panel',
         'admin_panel_withdrawals': 'View pending withdrawals',
         'admin_panel_approved': 'View approved withdrawals',
-        'admin_panel_export': 'Export all users to Excel'
+        'admin_panel_export': 'Export all users to Excel',
+        'promo_message': "Earn Money from Home!\n\nJoin this bot and get 500 Birr daily—plus a daily chance to win 1 of 5 iPhone 15 Pro Max!\n\nReferral Link:",
     },
     'am': {
         'welcome': "🎉 እንኳን ደህና መጡ, {name}!",
@@ -153,6 +154,7 @@ LANG = {
         'admin_panel_title': '🛡 አስተዳዳሪ ፓነል',
         'admin_panel_withdrawals': 'በመጠባበቅ ያሉ ውጪዎችን ይመልከቱ',
         'admin_panel_approved': 'የተፈቀዱ ውጪዎችን ይመልከቱ',
-        'admin_panel_export': 'ሁሉንም ተጠቃሚዎች ወደ Excel ያስመጡ'
+        'admin_panel_export': 'ሁሉንም ተጠቃሚዎች ወደ Excel ያስመጡ',
+        'promo_message': "💰ከቤቶ ሆነው ገንዘብ ይስሩ! 💵\n\n⭕️ይህን ቦት ተቀላቅለው ለሰው በማስተላለፍ ብቻ በቀን ከ500 ብር በላይ ይስሩ ፣ በተጨማሪም በየቀኑ ከምንሸልማቸው 5 Iphone 15 Pro Max ስልኮች 1 ይሸለሙ።\n\n🔗የሪፈራል ሊንክ፡",
     }
 } 
