@@ -33,17 +33,16 @@ def _on_startup(app):
 class TelegramBot:
     def __init__(self):
         self.application = Application.builder().token(BOT_TOKEN).build()
-        self.setup_handlers()
-
-    async def startup(self):
-        await self.init_db_job(None)
-        await self.set_bot_commands()
-
-    async def init_db_job(self, context):
-        await init_db()
-    
-    def setup_handlers(self):
+        
+        # Set up command menu
+        commands = [
+            BotCommand("start", "🔄 Start - Restart"),
+            BotCommand("referral", "🔗 Referral")
+        ]
+        
+        # Add command handlers
         self.application.add_handler(CommandHandler("start", self.start_command))
+        self.application.add_handler(CommandHandler("referral", self.referral_command))
         self.application.add_handler(CommandHandler("balance", self.balance_command))
         self.application.add_handler(CommandHandler("myearnings", self.cmd_my_earnings))
         self.application.add_handler(CommandHandler("myreferrals", self.cmd_my_referrals))
@@ -58,6 +57,7 @@ class TelegramBot:
         self.application.add_handler(CommandHandler("admin", self.admin_panel_command))
         self.application.add_handler(CommandHandler("admin_export_users", self.admin_export_users_command))
         self.application.add_handler(CommandHandler("help", self.help_command))
+        self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_invalid_message))
         # Handler order: admin_withdrawal_action first, then withdraw_conv, then button_callback
         self.application.add_handler(CallbackQueryHandler(self.admin_withdrawal_action, pattern=r"^admin_withdraw_(approve|reject)_\d+$"))
         withdraw_conv = ConversationHandler(
@@ -74,6 +74,21 @@ class TelegramBot:
         )
         self.application.add_handler(withdraw_conv)
         self.application.add_handler(CallbackQueryHandler(self.button_callback))
+    
+    async def startup(self):
+        await self.init_db_job(None)
+        await self.set_bot_commands()
+        
+    async def init_db_job(self, context):
+        await init_db()
+        
+    async def set_bot_commands(self, update=None, context=None):
+        """Set bot commands in the menu"""
+        commands = [
+            BotCommand("start", "🔄 Start - Restart"),
+            BotCommand("referral", "🔗 Referral")
+        ]
+        await self.application.bot.set_my_commands(commands)
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user = update.effective_user
@@ -144,9 +159,9 @@ class TelegramBot:
                         referrer_id = user_row[4]
                         valid_referrals = await count_valid_referrals(referrer_id)
                         referrer = await get_user(referrer_id)
-                        if valid_referrals == 15 and referrer and not referrer[3]:
+                        if valid_referrals == 5 and referrer and not referrer[3]:
                             await unlock_bonus(referrer_id)
-                        elif valid_referrals > 15:
+                        elif valid_referrals > 5:
                             await add_ongoing_referral_bonus(referrer_id)
                     await self.show_referral_info(update, user_id, query)
             else: 
@@ -160,9 +175,9 @@ class TelegramBot:
                     referrer_id = user_row[4]
                     valid_referrals = await count_valid_referrals(referrer_id)
                     referrer = await get_user(referrer_id)
-                    if valid_referrals == 15 and referrer and not referrer[3]:
+                    if valid_referrals == 5 and referrer and not referrer[3]:
                         await unlock_bonus(referrer_id)
-                    elif valid_referrals > 15:
+                    elif valid_referrals > 5:
                         await add_ongoing_referral_bonus(referrer_id)
                 await self.show_referral_info(update, user_id, query)
             else:
@@ -243,8 +258,8 @@ class TelegramBot:
         user_lang = await get_user_lang(user_id)
         valid_referrals = await count_valid_referrals(user_id)
         user = await get_user(user_id)
-        # Only unlock balance if 15 valid referrals and bonus is unlocked
-        if valid_referrals >= 15 and user and user[3]:
+        # Only unlock balance if 5 valid referrals and bonus is unlocked
+        if valid_referrals >= 5 and user and user[3]:
             balance = user[1]
             unlocked = "Yes"
             balance_display = f"{balance} ETB"
@@ -253,7 +268,7 @@ class TelegramBot:
             unlocked = "No"
             balance_display = "Locked"
         message = (
-            f"{LANG[user_lang]['joined_channel']}\n\n{LANG[user_lang]['signup_bonus']}\n\n{LANG[user_lang]['valid_referrals'].format(count=valid_referrals)}\n{LANG[user_lang]['balance'].format(amount=balance_display)}\n{LANG[user_lang]['bonus_unlocked'].format(unlocked=unlocked)}"
+            f"{LANG[user_lang]['welcome_new'].format(count=valid_referrals, balance='Locked' if not (user and user[3]) else f'{user[1]} ETB', can_withdraw='Yes' if (user and user[3] and valid_referrals >= 5) else 'No')}"
         )
         keyboard = [
             [
@@ -271,6 +286,9 @@ class TelegramBot:
             [
                 InlineKeyboardButton(LANG[user_lang]['settings'], callback_data="settings"),
                 InlineKeyboardButton(LANG[user_lang]['language'], callback_data="language")
+            ],
+            [
+                InlineKeyboardButton(LANG[user_lang]['rules'], callback_data="rules")
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -306,9 +324,9 @@ class TelegramBot:
         user_lang = await get_user_lang(user_id)
         user = await get_user(user_id)
         valid_referrals = await count_valid_referrals(user_id)
-        # Only unlock earnings if 15 valid referrals and bonus is unlocked
-        if valid_referrals >= 15 and user and user[3]:
-            total_earned = 30 + max(0, valid_referrals - 15)
+        # Only unlock earnings if 5 valid referrals and bonus is unlocked
+        if valid_referrals >= 5 and user and user[3]:
+            total_earned = 30 + max(0, valid_referrals - 5)
             locked_bonus = "No"
             available_balance = user[1]
             can_withdraw = available_balance >= 5
@@ -320,7 +338,7 @@ class TelegramBot:
         message = (
             f"{LANG[user_lang]['total_earned']}: {total_earned} ETB\n"
             f"{LANG[user_lang]['locked_bonus']}: {locked_bonus}\n"
-            f"{LANG[user_lang]['available_balance']}: {available_balance if valid_referrals >= 15 and user and user[3] else 'Locked'} ETB"
+            f"{LANG[user_lang]['available_balance']}: {available_balance if valid_referrals >= 5 and user and user[3] else 'Locked'} ETB"
         )
         keyboard = []
         if can_withdraw:
@@ -339,7 +357,7 @@ class TelegramBot:
         user_lang = await get_user_lang(user_id)
         valid_referrals = await count_valid_referrals(user_id)
         today_referrals = await count_today_valid_referrals(user_id)
-        next_target = max(0, 15 - valid_referrals)
+        next_target = max(0, 5 - valid_referrals)
         next_target_text = f"{next_target} {LANG[user_lang]['more_to_unlock']}" if next_target > 0 else LANG[user_lang]['unlocked']
         message = (
             f"{LANG[user_lang]['total_referred_users']}: {valid_referrals}\n"
@@ -491,14 +509,14 @@ class TelegramBot:
         if user_lang == 'am':
             message = (
                 "💰ከቤቶ ሆነው ገንዘብ ይስሩ! 💵 \n\n"
-                "⭕️ይህን ቦት ተቀላቅለው ለሰው በማስተላለፍ ብቻ በቀን ከ500 ብር በላይ ይስሩ ፣ በተጨማሪም በየቀኑ ከምንሸልማቸው 5 Iphone 15 Pro Max ስልኮች 1 ይሸለሙ።\n\n"
+                "⭕️ይህን ቦት ተቀላቅለው ለሰው በማስተላለፍ ብቻ በቀን ከ1000 ብር በላይ ይስሩ ፣ በተጨማሪም በየቀኑ ከምንሸልማቸው 5 Iphone 16 Pro Max ስልኮች 1 ይሸለሙ።\n\n"
                 "🔗የሪፈራል ሊንክ፡\n"
                 f"{referral_link}"
             )
         else:
             message = (
                 "💰Earn Money from Home! 💵\n\n"
-                "⭕️Join this bot and by simply sharing it with others, earn over 500 Birr daily; plus, every day you have a chance to win 1 of 5 iPhone 15 Pro Max!\n\n"
+                "⭕️Join this bot and by simply sharing it with others, earn over 1000 Birr daily; plus, every day you have a chance to win 1 of 5 iPhone 16 Pro Max!\n\n"
                 "🔗Referral Link:\n"
                 f"{referral_link}"
             )
@@ -547,8 +565,8 @@ class TelegramBot:
             valid_referrals = await count_valid_referrals(user_id)
             user_lang = await get_user_lang(user_id)
             # Prevent withdraw if not eligible
-            if not (user and user[3] and valid_referrals >= 15 and user[1] >= 5):
-                msg = "❌ You need at least 15 valid referrals and minimum 5 ETB balance to withdraw."
+            if not (user and user[3] and valid_referrals >= 5 and user[1] >= 5):
+                msg = LANG[user_lang]['withdraw_eligibility_error']
                 # Clear any withdraw-related context
                 if context.user_data is not None:
                     context.user_data.pop('withdraw_amount', None)
@@ -566,23 +584,13 @@ class TelegramBot:
             query = update.callback_query
             await query.answer()
             user_lang = await get_user_lang(query.from_user.id)
-            msg = (
-                "How much do you want to Withdraw?\n\n"
-                "<pre>Here are the minimum and maximum amount you can withdraw,\n"
-                "Minimum Amount: 5 ETB\n"
-                "Maximum Amount: 1,000 ETB</pre>"
-            )
+            msg = LANG[user_lang]['withdraw_how_much'] + "\n\n" + LANG[user_lang]['withdraw_minmax']
             if query:
                 await query.edit_message_text(msg, parse_mode="HTML")
             return WITHDRAW_AMOUNT
         else:
             user_lang = await get_user_lang(update.effective_user.id) if update.effective_user else None
-            msg = (
-                "How much do you want to Withdraw?\n\n"
-                "<pre>Here are the minimum and maximum amount you can withdraw,\n"
-                "Minimum Amount: 5 ETB\n"
-                "Maximum Amount: 1,000 ETB</pre>"
-            )
+            msg = LANG[user_lang]['withdraw_how_much'] + "\n\n" + LANG[user_lang]['withdraw_minmax']
             if update.message:
                 await update.message.reply_text(msg, parse_mode="HTML")
             return WITHDRAW_AMOUNT
@@ -601,15 +609,15 @@ class TelegramBot:
             amount = int(text)
         except Exception:
             if update.message:
-                await update.message.reply_text("❌ Please enter a valid number.")
+                await update.message.reply_text(LANG[user_lang]['withdraw_invalid'])
             return WITHDRAW_AMOUNT
         if amount < 5:
             if update.message:
-                await update.message.reply_text("❌ Minimum withdraw amount is 5 ETB.")
+                await update.message.reply_text(LANG[user_lang]['withdraw_min'])
             return WITHDRAW_AMOUNT
         if amount > balance:
             if update.message:
-                await update.message.reply_text(f"❌ You cannot withdraw more than your balance ({balance} ETB).")
+                await update.message.reply_text(LANG[user_lang]['withdraw_max'].format(balance=balance))
             return WITHDRAW_AMOUNT
         if context.user_data is not None:
             context.user_data['withdraw_amount'] = amount
@@ -621,7 +629,7 @@ class TelegramBot:
         reply_markup = ReplyKeyboardMarkup(bank_keyboard, one_time_keyboard=True, resize_keyboard=True)
         if update.message:
             await update.message.reply_text(
-                "Select a bank to withdraw your money to",
+                LANG[user_lang]['withdraw_select_bank'],
                 reply_markup=reply_markup
             )
         return WITHDRAW_BANK
@@ -630,7 +638,7 @@ class TelegramBot:
         bank = update.message.text.strip() if update.message and update.message.text else None
         if not bank:
             if update.message:
-                await update.message.reply_text("❌ Please select a valid bank from the menu.")
+                await update.message.reply_text(LANG[user_lang]['select_valid_bank'])
             return WITHDRAW_BANK
         valid_banks = [
             "TeleBirr",
@@ -646,7 +654,7 @@ class TelegramBot:
         if context.user_data is not None:
             context.user_data['withdraw_bank'] = bank
         if update.message:
-            await update.message.reply_text(f"Please enter your account number for {bank}", reply_markup=ReplyKeyboardRemove())
+            await update.message.reply_text(LANG[user_lang]['withdraw_account_number'].format(bank=bank), reply_markup=ReplyKeyboardRemove())
         return WITHDRAW_ACCOUNT
 
     async def withdraw_account_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -655,7 +663,7 @@ class TelegramBot:
         if context.user_data is not None:
             context.user_data['withdraw_account'] = account_number
         if update.message:
-            await update.message.reply_text(f"Please enter the account owners full name for {bank}")
+            await update.message.reply_text(LANG[user_lang]['withdraw_account_name'].format(bank=bank))
         return WITHDRAW_NAME
 
     async def withdraw_name_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -671,14 +679,13 @@ class TelegramBot:
         # Add withdrawal request to DB
         if update.effective_user and update.effective_user.id:
             await add_withdrawal(update.effective_user.id, amount, status='Pending', bank=bank, account_number=account_number, account_name=full_name)
-        msg = (
-            "Please confirm your withdrawal:\n\n"
-            f"<pre>Bank: {bank}\n"
-            f"Account Number: {account_number}\n"
-            f"Account Name: {full_name}\n"
-            f"Requested Amount: {amount} ETB\n"
-            f"Transaction Fee: {fee} ETB\n"
-            f"You will receive: {net} ETB</pre>"
+        msg = LANG[user_lang]['withdraw_confirm'].format(
+            bank=bank,
+            account=account_number,
+            name=full_name,
+            amount=amount,
+            fee=fee,
+            net=net
         )
         keyboard = [
             [
@@ -692,56 +699,13 @@ class TelegramBot:
 
     async def withdraw_cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.message:
-            await update.message.reply_text("Withdraw cancelled.")
+            await update.message.reply_text(LANG[user_lang]['withdraw_cancelled'])
         if context.user_data is not None:
             context.user_data.pop('withdraw_amount', None)
+            context.user_data.pop('withdraw_bank', None)
+            context.user_data.pop('withdraw_account', None)
+            context.user_data.pop('withdraw_name', None)
         return ConversationHandler.END
-
-    async def set_bot_commands(self, context=None):
-        commands = [
-            BotCommand("start", "Start the bot / Home menu"),
-            BotCommand("myearnings", "View your earnings"),
-            BotCommand("myreferrals", "View your referrals"),
-            BotCommand("withdraw", "Withdraw your balance"),
-            BotCommand("referrallink", "Get your referral link"),
-            BotCommand("leaderboard", "View the leaderboard"),
-            BotCommand("history", "View your withdrawal history"),
-            BotCommand("settings", "Bot settings"),
-            BotCommand("language", "Change language"),
-            BotCommand("help", "Show all commands"),
-        ]
-        bot = context.bot if context and hasattr(context, 'bot') else self.application.bot
-        await bot.set_my_commands(commands)
-
-    # Slash command handlers for menu commands
-    async def cmd_my_earnings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if update.effective_user and update.effective_user.id:
-            await self.show_earnings(update, update.effective_user.id)
-
-    async def cmd_my_referrals(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if update.effective_user and update.effective_user.id:
-            await self.show_my_referrals(update, update.effective_user.id)
-
-    async def cmd_withdraw(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        # Start withdraw process (simulate button click)
-        await self.withdraw_start(update, context)
-
-    async def cmd_referral_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if update.effective_user and update.effective_user.id:
-            await self.show_referral_link(update, update.effective_user.id)
-
-    async def cmd_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await self.show_leaderboard(update)
-
-    async def cmd_history(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if update.effective_user and update.effective_user.id:
-            await self.show_history(update, update.effective_user.id)
-
-    async def cmd_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await self.show_settings(update)
-
-    async def cmd_language(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await self.show_language_panel(update)
 
     async def admin_withdrawals_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id if update.effective_user else None
@@ -921,20 +885,90 @@ class TelegramBot:
                 await update.message.reply_document(f, filename="users_export.xlsx")
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        commands = [
-            ("/start", "Start the bot / Home menu"),
-            ("/myearnings", "View your earnings"),
-            ("/myreferrals", "View your referrals"),
-            ("/withdraw", "Withdraw your balance"),
-            ("/referrallink", "Get your referral link"),
-            ("/leaderboard", "View the leaderboard"),
-            ("/history", "View your withdrawal history"),
-            ("/settings", "Bot settings"),
-            ("/language", "Change language"),
-        ]
-        msg = "<b>Available Commands:</b>\n\n" + "\n".join([f"<b>{cmd}</b> - {desc}" for cmd, desc in commands])
-        if update.message:
-            await update.message.reply_text(msg, parse_mode="HTML")
+        if not update.effective_user:
+            return
+        user_lang = await get_user_lang(update.effective_user.id)
+        help_text = f"""
+{LANG[user_lang]['welcome'].format(name=update.effective_user.first_name)}
+
+Available commands:
+/start - Start the bot
+/balance - Check your balance
+/withdraw - Withdraw money
+/referral_link - Get your referral link
+/my_earnings - View your earnings
+/my_referrals - View your referrals
+/leaderboard - View top referrers
+/history - View withdrawal history
+/settings - Bot settings
+/help - Show this help message
+
+Admin commands:
+/admin_panel - Admin panel (admin only)
+/admin_withdrawals - View pending withdrawals (admin only)
+/admin_approved - View approved withdrawals (admin only)
+/admin_export - Export users to Excel (admin only)
+        """
+        await update.message.reply_text(help_text)
+
+    async def handle_invalid_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle invalid text messages gracefully - only in private chats"""
+        if not update.effective_user:
+            return
+        
+        # Only respond to invalid commands in private chats, not in groups
+        if update.message.chat.type != "private":
+            return
+            
+        user_lang = await get_user_lang(update.effective_user.id)
+        await update.message.reply_text(LANG[user_lang]['invalid_command'])
+
+    async def referral_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /referral command"""
+        user = update.effective_user
+        if not user:
+            return
+        
+        user_id = user.id
+        user_lang = await get_user_lang(user_id)
+        referral_link = f"https://t.me/{BOT_NAME.lstrip('@')}?start={user_id}"
+        
+        message = (
+            f"{LANG[user_lang]['promo_message']}\n"
+            f"{referral_link}"
+        )
+        
+        await update.message.reply_text(message, disable_web_page_preview=True)
+
+    # Slash command handlers for menu commands
+    async def cmd_my_earnings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if update.effective_user and update.effective_user.id:
+            await self.show_earnings(update, update.effective_user.id)
+
+    async def cmd_my_referrals(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if update.effective_user and update.effective_user.id:
+            await self.show_my_referrals(update, update.effective_user.id)
+
+    async def cmd_withdraw(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # Start withdraw process (simulate button click)
+        await self.withdraw_start(update, context)
+
+    async def cmd_referral_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if update.effective_user and update.effective_user.id:
+            await self.show_referral_link(update, update.effective_user.id)
+
+    async def cmd_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await self.show_leaderboard(update)
+
+    async def cmd_history(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if update.effective_user and update.effective_user.id:
+            await self.show_history(update, update.effective_user.id)
+
+    async def cmd_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await self.show_settings(update)
+
+    async def cmd_language(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await self.show_language_panel(update)
 
     def run(self):
         # Only run polling; do not call asyncio.run(self.startup()) to avoid event loop errors

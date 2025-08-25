@@ -103,7 +103,7 @@ async def unlock_bonus(user_id):
 async def add_ongoing_referral_bonus(user_id):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "UPDATE users SET balance = balance + 1 WHERE user_id = ?",
+            "UPDATE users SET balance = balance + 5 WHERE user_id = ?",
             (user_id,)
         )
         await db.commit()
@@ -142,7 +142,7 @@ async def get_user_lang(user_id):
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("SELECT lang FROM users WHERE user_id = ?", (user_id,)) as cursor:
             row = await cursor.fetchone()
-            return row[0] if row else 'en'
+            return row[0] if row else 'am'
 
 async def get_pending_withdrawals(limit=5):
     async with aiosqlite.connect(DB_PATH) as db:
