@@ -25,38 +25,52 @@ WITHDRAW_PHONE, WITHDRAW_AMOUNT, WITHDRAW_BANK, WITHDRAW_ACCOUNT, WITHDRAW_NAME,
 
 ADMIN_USER_IDS = [368455563]
 
+
 def _on_startup(app):
-    import asyncio
     asyncio.create_task(app.init_db_job(None))
     asyncio.create_task(app.set_bot_commands(None))
+
 
 class TelegramBot:
     def __init__(self):
         self.application = Application.builder().token(BOT_TOKEN).build()
         
-        # Set up command menu
-        commands = [
-            BotCommand("start", "🔄 Start - Restart"),
-            BotCommand("referral", "🔗 Referral")
-        ]
-        
         # Add command handlers
-        self.application.add_handler(CommandHandler("start", self.start_command))
-        self.application.add_handler(CommandHandler("referral", self.referral_command))
-        self.application.add_handler(CommandHandler("balance", self.balance_command))
-        self.application.add_handler(CommandHandler("myearnings", self.cmd_my_earnings))
-        self.application.add_handler(CommandHandler("myreferrals", self.cmd_my_referrals))
-        self.application.add_handler(CommandHandler("withdraw", self.cmd_withdraw))
-        self.application.add_handler(CommandHandler("referrallink", self.cmd_referral_link))
-        self.application.add_handler(CommandHandler("leaderboard", self.cmd_leaderboard))
-        self.application.add_handler(CommandHandler("history", self.cmd_history))
-        self.application.add_handler(CommandHandler("settings", self.cmd_settings))
-        self.application.add_handler(CommandHandler("language", self.cmd_language))
-        self.application.add_handler(CommandHandler("admin_withdrawals", self.admin_withdrawals_command))
-        self.application.add_handler(CommandHandler("admin_approved_withdrawals", self.admin_approved_withdrawals_command))
-        self.application.add_handler(CommandHandler("admin", self.admin_panel_command))
-        self.application.add_handler(CommandHandler("admin_export_users", self.admin_export_users_command))
-        self.application.add_handler(CommandHandler("help", self.help_command))
+        self.application.add_handler(
+            CommandHandler("start", self.start_command))
+        self.application.add_handler(
+            CommandHandler("referral", self.referral_command))
+        self.application.add_handler(
+            CommandHandler("balance", self.balance_command))
+        self.application.add_handler(
+            CommandHandler("myearnings", self.cmd_my_earnings))
+        self.application.add_handler(
+            CommandHandler("myreferrals", self.cmd_my_referrals))
+        self.application.add_handler(
+            CommandHandler("withdraw", self.cmd_withdraw))
+        self.application.add_handler(
+            CommandHandler("referrallink", self.cmd_referral_link))
+        self.application.add_handler(
+            CommandHandler("leaderboard", self.cmd_leaderboard))
+        self.application.add_handler(
+            CommandHandler("history", self.cmd_history))
+        self.application.add_handler(
+            CommandHandler("settings", self.cmd_settings))
+        self.application.add_handler(
+            CommandHandler("language", self.cmd_language))
+        self.application.add_handler(
+            CommandHandler("admin_withdrawals",
+                           self.admin_withdrawals_command))
+        self.application.add_handler(
+            CommandHandler("admin_approved_withdrawals",
+                           self.admin_approved_withdrawals_command))
+        self.application.add_handler(
+            CommandHandler("admin", self.admin_panel_command))
+        self.application.add_handler(
+            CommandHandler("admin_export_users",
+                           self.admin_export_users_command))
+        self.application.add_handler(
+            CommandHandler("help", self.help_command))
         # Invalid message handler disabled to avoid interfering with conversations
         # self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_invalid_message), group=-1)
         # Handler order: admin_withdrawal_action first, then withdraw_conv, then button_callback
@@ -184,19 +198,20 @@ class TelegramBot:
                 await self.show_referral_info(update, user_id, query)
             else:
                 await self.show_not_joined_message(query, GROUP_USERNAME, GROUP_LINK, "group", "check_group_join")
-        elif query.data == "my_earnings":
-            await self.show_earnings(query, user_id)
         elif query.data == "back_home":
             await self.show_referral_info(update, user_id, query)
+        elif query.data == "my_earnings":
+            await self.show_earnings(query, user_id)
         elif query.data == "my_referrals":
             await self.show_my_referrals(query, user_id)
+        elif query.data == "withdraw":
+            # Start withdraw conversation
+            await self.withdraw_start(update, context)
         elif query.data == "leaderboard":
             await self.show_leaderboard(query)
         elif query.data == "history":
             await self.show_history(query, user_id)
         elif query.data == "settings":
-            await self.show_settings(query)
-        elif query.data == "view_subscription_status":
             await self.show_subscription_status(query, user_id, context)
         elif query.data == "rules":
             await self.show_rules(query)
