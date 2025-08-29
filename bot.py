@@ -21,7 +21,7 @@ for logger_name in ['httpx', 'apscheduler', 'telegram.ext', '__main__']:
 print("Bot run successfully")
 
 # Conversation states
-WITHDRAW_PHONE, WITHDRAW_AMOUNT, WITHDRAW_BANK, WITHDRAW_ACCOUNT, WITHDRAW_NAME = range(5)
+WITHDRAW_PHONE, WITHDRAW_AMOUNT, WITHDRAW_BANK, WITHDRAW_ACCOUNT, WITHDRAW_NAME, WITHDRAW_CONFIRM = range(6)
 
 ADMIN_USER_IDS = [368455563]
 
@@ -57,7 +57,8 @@ class TelegramBot:
         self.application.add_handler(CommandHandler("admin", self.admin_panel_command))
         self.application.add_handler(CommandHandler("admin_export_users", self.admin_export_users_command))
         self.application.add_handler(CommandHandler("help", self.help_command))
-        self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_invalid_message))
+        # Invalid message handler disabled to avoid interfering with conversations
+        # self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_invalid_message), group=-1)
         # Handler order: admin_withdrawal_action first, then withdraw_conv, then button_callback
         self.application.add_handler(CallbackQueryHandler(self.admin_withdrawal_action, pattern=r"^admin_withdraw_(approve|reject)_\d+$"))
         withdraw_conv = ConversationHandler(
@@ -67,6 +68,7 @@ class TelegramBot:
                 WITHDRAW_BANK: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.withdraw_bank_handler)],
                 WITHDRAW_ACCOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.withdraw_account_handler)],
                 WITHDRAW_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.withdraw_name_handler)],
+                WITHDRAW_CONFIRM: [CallbackQueryHandler(self.withdraw_confirm_handler, pattern="^withdraw_(confirm|cancel)$")],
             },
             fallbacks=[CommandHandler("cancel", self.withdraw_cancel)],
             per_user=True,
@@ -208,12 +210,7 @@ class TelegramBot:
             await self.show_referral_link(query, user_id)
         elif query.data == "language":
             await self.show_language_panel(query)
-        elif query.data == "withdraw_confirm":
-            await query.edit_message_text("✅ Your withdrawal request has been submitted! (Admin will process it soon.)")
-            return
-        elif query.data == "withdraw_cancel":
-            await query.edit_message_text("❌ Withdrawal cancelled.")
-            return
+
         elif query.data == "set_lang_en":
             await set_user_lang(user_id, 'en')
             keyboard = [[InlineKeyboardButton(LANG['en']['back_home'], callback_data="back_home")]]
@@ -268,7 +265,7 @@ class TelegramBot:
             unlocked = "No"
             balance_display = "Locked"
         message = (
-            f"{LANG[user_lang]['welcome_new'].format(count=valid_referrals, balance='Locked' if not (user and user[3]) else f'{user[1]} ETB', can_withdraw='Yes' if (user and user[3] and valid_referrals >= 5) else 'No')}"
+            f"{LANG[user_lang]['welcome_new'].format(count=valid_referrals, balance='Locked' if not (user and user[3] and valid_referrals >= 5) else f'{user[1]} ETB', can_withdraw='Yes' if (user and user[3] and valid_referrals >= 5) else 'No')}"
         )
         keyboard = [
             [
@@ -635,6 +632,11 @@ class TelegramBot:
         return WITHDRAW_BANK
 
     async def withdraw_bank_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id if update.effective_user else None
+        if user_id is None:
+            return WITHDRAW_BANK
+        user_lang = await get_user_lang(user_id)
+        
         bank = update.message.text.strip() if update.message and update.message.text else None
         if not bank:
             if update.message:
@@ -658,6 +660,11 @@ class TelegramBot:
         return WITHDRAW_ACCOUNT
 
     async def withdraw_account_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id if update.effective_user else None
+        if user_id is None:
+            return WITHDRAW_ACCOUNT
+        user_lang = await get_user_lang(user_id)
+        
         account_number = update.message.text.strip() if update.message and update.message.text else None
         bank = context.user_data.get('withdraw_bank', '') if context.user_data else ''
         if context.user_data is not None:
@@ -667,6 +674,11 @@ class TelegramBot:
         return WITHDRAW_NAME
 
     async def withdraw_name_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id if update.effective_user else None
+        if user_id is None:
+            return WITHDRAW_NAME
+        user_lang = await get_user_lang(user_id)
+        
         full_name = update.message.text.strip() if update.message and update.message.text else None
         bank = context.user_data.get('withdraw_bank', '') if context.user_data else ''
         account_number = context.user_data.get('withdraw_account', '') if context.user_data else ''
@@ -676,9 +688,7 @@ class TelegramBot:
         # Calculate fee and net amount
         fee = round(amount * 0.033, 2)
         net = round(amount - fee, 2)
-        # Add withdrawal request to DB
-        if update.effective_user and update.effective_user.id:
-            await add_withdrawal(update.effective_user.id, amount, status='Pending', bank=bank, account_number=account_number, account_name=full_name)
+
         msg = LANG[user_lang]['withdraw_confirm'].format(
             bank=bank,
             account=account_number,
@@ -695,9 +705,67 @@ class TelegramBot:
         ]
         if update.message:
             await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
+        return WITHDRAW_CONFIRM
+
+    async def withdraw_confirm_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle withdraw confirm/cancel callbacks"""
+        query = update.callback_query
+        if not query:
+            return ConversationHandler.END
+        
+        await query.answer()
+        user_id = query.from_user.id if query.from_user else None
+        if not user_id:
+            return ConversationHandler.END
+        
+        user_lang = await get_user_lang(user_id)
+        
+        if query.data == "withdraw_confirm":
+            # Get withdrawal data from context
+            amount = context.user_data.get('withdraw_amount', 0) if context.user_data else 0
+            bank = context.user_data.get('withdraw_bank', '') if context.user_data else ''
+            account_number = context.user_data.get('withdraw_account', '') if context.user_data else ''
+            account_name = context.user_data.get('withdraw_name', '') if context.user_data else ''
+            
+            if amount > 0:
+                # Add withdrawal request to DB
+                await add_withdrawal(user_id, amount, status='Pending', bank=bank, account_number=account_number, account_name=account_name)
+                
+                # Update user balance
+                await update_user_balance(user_id, -amount)
+                
+                # Clear context data
+                if context.user_data:
+                    context.user_data.pop('withdraw_amount', None)
+                    context.user_data.pop('withdraw_bank', None)
+                    context.user_data.pop('withdraw_account', None)
+                    context.user_data.pop('withdraw_name', None)
+                
+                await query.edit_message_text(LANG[user_lang]['withdraw_success'])
+            else:
+                await query.edit_message_text("❌ Error: Invalid withdrawal data")
+            
+            return ConversationHandler.END
+            
+        elif query.data == "withdraw_cancel":
+            # Clear context data
+            if context.user_data:
+                context.user_data.pop('withdraw_amount', None)
+                context.user_data.pop('withdraw_bank', None)
+                context.user_data.pop('withdraw_account', None)
+                context.user_data.pop('withdraw_name', None)
+            
+            await query.edit_message_text(LANG[user_lang]['withdraw_cancelled'])
+            return ConversationHandler.END
+        
         return ConversationHandler.END
 
     async def withdraw_cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id if update.effective_user else None
+        if user_id is None:
+            return ConversationHandler.END
+        user_lang = await get_user_lang(user_id)
+        
         if update.message:
             await update.message.reply_text(LANG[user_lang]['withdraw_cancelled'])
         if context.user_data is not None:
@@ -918,6 +986,26 @@ Admin commands:
         
         # Only respond to invalid commands in private chats, not in groups
         if update.message.chat.type != "private":
+            return
+        
+        # Don't interfere with withdrawal conversation or other conversations
+        if context.user_data and any(key.startswith('withdraw_') for key in context.user_data.keys()):
+            return
+        
+        # Don't interfere if user is in any conversation state
+        if hasattr(context, 'user_data') and context.user_data:
+            return
+        
+        # Don't interfere with withdrawal conversation
+        if context.user_data and any(key.startswith('withdraw_') for key in context.user_data.keys()):
+            return
+        
+        # Don't interfere with any active conversation
+        if context.user_data and len(context.user_data) > 0:
+            return
+        
+        # Don't interfere with any active conversation
+        if context.user_data and len(context.user_data) > 0:
             return
             
         user_lang = await get_user_lang(update.effective_user.id)
