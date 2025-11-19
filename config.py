@@ -9,7 +9,7 @@ GROUP_USERNAME = "-1002582748190"    # গ্রুপের আইডি (উ�
 GROUP_LINK = "https://t.me/Nanabetchat"
 
 
-BOT_NAME = "@Testbotformyclient_bot"
+BOT_NAME = "@nanareferralbot"
 BOT_DESCRIPTION = "A bot that requires users to join a channel and a group before proceeding"
 
 # External links
